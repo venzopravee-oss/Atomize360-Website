@@ -16,6 +16,8 @@ export function Contact({ onNavigate: _onNavigate }: ContactProps) {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -28,15 +30,54 @@ export function Contact({ onNavigate: _onNavigate }: ContactProps) {
     return errs;
   };
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const errs = validate();
-    setErrors(errs);
-    if (Object.keys(errs).length === 0) {
+  const handleSubmit = async (e: FormEvent) => {
+  e.preventDefault();
+
+  const errs = validate();
+  setErrors(errs);
+
+  if (Object.keys(errs).length !== 0) return;
+
+  setIsSending(true);
+  setSubmitError('');
+
+  try {
+    const response = await fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        access_key: import.meta.env.VITE_WEB3FORMS_ACCESS_KEY,
+        name: formState.name,
+        company: formState.company,
+        email: formState.email,
+        subject: formState.subject,
+        message: formState.message,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
       setSubmitted(true);
-      setFormState({ name: '', company: '', email: '', subject: '', message: '' });
+      setFormState({
+        name: '',
+        company: '',
+        email: '',
+        subject: '',
+        message: '',
+      });
+    } else {
+      setSubmitError(result.message || 'Message could not be sent. Please try again.');
     }
-  };
+  } catch {
+    setSubmitError('Network error. Please try again.');
+  } finally {
+    setIsSending(false);
+  }
+};
 
   const CONTACT_ICONS = [Mail, Users, MapPin];
   const CONTACT_ACCENT_COLORS = [
@@ -247,13 +288,19 @@ export function Contact({ onNavigate: _onNavigate }: ContactProps) {
                       }
                       multiline
                     />
+                    {submitError && (
+                      <p className="text-sm text-red-500 font-['Inter']">
+                        {submitError}
+                      </p>
+                    )}
                     <button
                       type="submit"
-                      className="relative group flex items-center justify-center gap-2 w-full py-3.5 rounded-xl text-sm font-semibold font-['Inter'] text-white overflow-hidden transition-all duration-300 hover:shadow-[0_4px_20px_rgba(46,91,255,0.4)] hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                      disabled={isSending}
+                      className="relative group flex items-center justify-center gap-2 w-full py-3.5 rounded-xl text-sm font-semibold font-['Inter'] text-white overflow-hidden transition-all duration-300 hover:shadow-[0_4px_20px_rgba(46,91,255,0.4)] hover:scale-[1.01] active:scale-[0.99] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <span className="absolute inset-0 brand-gradient-animated" />
                       <span className="relative z-10">
-                        {CONTACT_DATA.form.submitLabel}
+                        {isSending ? 'Sending...' : CONTACT_DATA.form.submitLabel}
                       </span>
                       <Send size={15} className="relative z-10" />
                     </button>
